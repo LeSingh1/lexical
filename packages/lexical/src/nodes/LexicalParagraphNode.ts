@@ -17,9 +17,21 @@ import type {
   DOMExportOutput,
   LexicalNode,
 } from '../LexicalNode';
-import type {RangeSelection} from '../LexicalSelection';
+import type {BaseSelection, RangeSelection} from '../LexicalSelection';
 
+import {
+  $comparePointCaretNext,
+  $getCaretInDirection,
+  $getChildCaret,
+} from '../caret/LexicalCaret';
+import {
+  $caretRangeFromSelection,
+  $getCaretRangeInDirection,
+  $normalizeCaret,
+} from '../caret/LexicalCaretUtils';
 import {ELEMENT_TYPE_TO_FORMAT} from '../LexicalConstants';
+import {$isRangeSelection} from '../LexicalSelection';
+import {$getSlotFrame} from '../LexicalSlot';
 import {
   $applyNodeReplacement,
   $getDocument,
@@ -99,6 +111,23 @@ export class ParagraphNode extends ElementNode {
     };
   }
 
+  extractWithChild(
+    child: LexicalNode,
+    selection: BaseSelection | null,
+    destination: 'clone' | 'html',
+  ): boolean {
+    // A RangeSelection normalizes its points onto TextNodes, so a range that
+    // covers every character of a paragraph still does not contain the
+    // paragraph itself unless it also crosses a block boundary. With a single
+    // top-level paragraph — the whole document after select-all — there is no
+    // boundary to cross, so the exporters saw only the TextNode and dropped
+    // every element-level property with the paragraph: indent, alignment and
+    // direction (#6086). Opt the paragraph back in when the range spans all
+    // of it, which is the state the exporters would have seen had the same
+    // content been one of several blocks.
+    return $isRangeSelection(selection) && $isFullySelected(this, selection);
+  }
+
   exportJSON(): SerializedParagraphNode {
     const json = super.exportJSON();
     // Provide backwards compatible values, see #7971
@@ -156,6 +185,45 @@ export class ParagraphNode extends ElementNode {
     }
     return false;
   }
+}
+
+/**
+ * Whether `selection` covers every position inside `element`: its start is at
+ * or before the first one and its end at or after the last. A range that
+ * extends past the element still covers it.
+ *
+ * The public `$isBlockFullySelected` in `@lexical/utils` answers the same
+ * question, but `@lexical/utils` depends on this package, so core keeps its
+ * own copy.
+ */
+function $isFullySelected(
+  element: ElementNode,
+  selection: RangeSelection,
+): boolean {
+  const range = $getCaretRangeInDirection(
+    $caretRangeFromSelection(selection),
+    'next',
+  );
+  // A named-slot subtree is isolated from its host by a parentless up-link, so
+  // a range on the other side of that boundary has no common ancestor to
+  // compare against and $comparePointCaretNext would throw. Different frames
+  // are never fully selected.
+  const anchorFrame = $getSlotFrame(range.anchor.origin);
+  const elementFrame = $getSlotFrame(element.getLatest());
+  if (
+    anchorFrame === null ? elementFrame !== null : !anchorFrame.is(elementFrame)
+  ) {
+    return false;
+  }
+  const start = $normalizeCaret($getChildCaret(element, 'next'));
+  const end = $getCaretInDirection(
+    $normalizeCaret($getChildCaret(element, 'previous')),
+    'next',
+  );
+  return (
+    $comparePointCaretNext(range.anchor, start) <= 0 &&
+    $comparePointCaretNext(range.focus, end) >= 0
+  );
 }
 
 function $convertParagraphElement(element: HTMLElement): DOMConversionOutput {

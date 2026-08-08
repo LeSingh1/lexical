@@ -144,7 +144,13 @@ describe('HTML', () => {
       html = $generateHtmlFromNodes(editor, selection);
     });
 
-    expect(html).toBe('<span style="white-space: pre-wrap;">World</span>');
+    // Only the second paragraph is serialized: the point of the test is that
+    // the argument wins over the editor's own selection (which covers "Hello").
+    // The wrapping <p> comes from ParagraphNode.extractWithChild — the range
+    // covers the whole paragraph, so the paragraph travels with its text (#6086).
+    expect(html).toBe(
+      '<p><span style="white-space: pre-wrap;">World</span></p>',
+    );
   });
 
   test(`[Lexical -> HTML]: Default selection (undefined) should serialize entire editor state`, () => {

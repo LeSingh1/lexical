@@ -104,28 +104,36 @@ test.describe('HTML Image CopyAndPaste', () => {
 
     await selectAll(page);
     clipboard = await copyToClipboard(page);
+    // The paragraph wrapper is part of the payload even though the document is
+    // a single block: select-all covers it, so it travels with its content
+    // (#6086). Without it the paragraph's own properties (indent, alignment,
+    // direction) would be dropped on copy.
     expect(await prettifyHTML(clipboard['text/html'])).toEqual(
       await prettifyHTML(
         html`
-          <span style="white-space: pre-wrap;">An</span>
-          <figure>
-            <img
-              alt="sample image alt"
-              height="inherit"
-              src="${SAMPLE_IMAGE_URL}"
-              width="inherit" />
-            <figcaption>
-              <span style="white-space: pre-wrap;">this is a caption with</span>
-              <b>
-                <strong
-                  class="PlaygroundEditorTheme__textBold"
-                  style="white-space: pre-wrap;">
-                  rich text
-                </strong>
-              </b>
-            </figcaption>
-          </figure>
-          <span style="white-space: pre-wrap;">inline image</span>
+          <div class="PlaygroundEditorTheme__paragraph" role="paragraph">
+            <span style="white-space: pre-wrap;">An</span>
+            <figure>
+              <img
+                alt="sample image alt"
+                height="inherit"
+                src="${SAMPLE_IMAGE_URL}"
+                width="inherit" />
+              <figcaption>
+                <span style="white-space: pre-wrap;">
+                  this is a caption with
+                </span>
+                <b>
+                  <strong
+                    class="PlaygroundEditorTheme__textBold"
+                    style="white-space: pre-wrap;">
+                    rich text
+                  </strong>
+                </b>
+              </figcaption>
+            </figure>
+            <span style="white-space: pre-wrap;">inline image</span>
+          </div>
         `.trim(),
       ),
     );

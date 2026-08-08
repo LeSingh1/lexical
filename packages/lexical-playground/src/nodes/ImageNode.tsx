@@ -14,14 +14,13 @@ import {
 } from '@lexical/extension';
 import {HashtagExtension} from '@lexical/hashtag';
 import {HistoryExtension} from '@lexical/history';
-import {$generateHtmlFromNodes} from '@lexical/html';
+import {$appendNodeToHTML, $generateHtmlFromNodes} from '@lexical/html';
 import {LinkExtension} from '@lexical/link';
 import {ReactExtension} from '@lexical/react/ReactExtension';
 import {ReactProviderExtension} from '@lexical/react/ReactProviderExtension';
 import {RichTextExtension} from '@lexical/rich-text';
 import {
   $applyNodeReplacement,
-  $createRangeSelection,
   $extendCaretToRange,
   $getChildCaret,
   $getDocument,
@@ -37,7 +36,6 @@ import {
   type LexicalNode,
   type LexicalUpdateJSON,
   type NodeKey,
-  type RangeSelection,
   type SerializedEditor,
   type SerializedLexicalNode,
   type Spread,
@@ -192,21 +190,18 @@ export class ImageNode extends DecoratorNode<JSX.Element> {
           return null;
         }
         // Don't serialize the wrapping paragraph if there is only one
-        let selection: null | RangeSelection = null;
         const firstChild = $getRoot().getFirstChild();
         if (
           $isParagraphNode(firstChild) &&
           firstChild.getNextSibling() === null
         ) {
-          selection = $createRangeSelection();
-          selection.anchor.set(firstChild.getKey(), 0, 'element');
-          selection.focus.set(
-            firstChild.getKey(),
-            firstChild.getChildrenSize(),
-            'element',
-          );
+          const container = $getDocument().createElement('div');
+          for (const child of firstChild.getChildren()) {
+            $appendNodeToHTML(captionEditor, child, container);
+          }
+          return container.innerHTML;
         }
-        return $generateHtmlFromNodes(captionEditor, selection);
+        return $generateHtmlFromNodes(captionEditor, null);
       });
       if (captionHtml) {
         const figureElement = $getDocument().createElement('figure');
